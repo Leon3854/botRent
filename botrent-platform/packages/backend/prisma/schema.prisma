@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  passwordHash  String
+  firstName     String
+  lastName      String?
+  phone         String?
+  telegramId    BigInt?
+  role          String         @default("client")
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+  bots          Bot[]
+}
+
+model Bot {
+  id            Int            @id @default(autoincrement())
+  userId        Int
+  user          User           @relation(fields: [userId], references: [id])
+  name          String
+  type          String
+  botToken      String
+  botUsername   String
+  isActive      Boolean        @default(false)
+  settings      Json?
+  subscriptionId Int?
+  subscription  Subscription?  @relation(fields: [subscriptionId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Plan {
+  id            Int            @id @default(autoincrement())
+  name          String
+  price         Int
+  maxBots       Int
+  features      Json
+  isActive      Boolean        @default(true)
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id            Int            @id @default(autoincrement())
+  userId        Int
+  user          User           @relation(fields: [userId], references: [id])
+  planId        Int
+  plan          Plan           @relation(fields: [planId], references: [id])
+  status        String         @default("pending")
+  startDate     DateTime       @default(now())
+  endDate       DateTime?
+  bots          Bot[]
+  payments      Payment[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Payment {
+  id             Int            @id @default(autoincrement())
+  subscriptionId Int
+  subscription   Subscription   @relation(fields: [subscriptionId], references: [id])
+  amount         Int
+  status         String         @default("pending")
+  yookassaId     String?
+  paidAt         DateTime?
+  createdAt      DateTime       @default(now())
+}
+
+model Lead {
+  id         Int      @id @default(autoincrement())
+  name       String
+  phone      String
+  business   String
+  botType    String
+  status     String   @default("new")
+  createdAt  DateTime @default(now())
+}
