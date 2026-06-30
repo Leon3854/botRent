@@ -1,18 +1,25 @@
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, IsNotEmpty } from 'class-validator';
 
 export class RegisterDto {
-  @IsEmail({}, { message: 'Введите корректный email' })
+  @IsEmail({}, { message: 'Invalid email' })
+  @IsNotEmpty()
   email: string;
 
   @IsString()
-  @MinLength(6, { message: 'Пароль должен быть не менее 6 символов' })
+  @MinLength(6, { message: 'Password must be at least 6 characters' })
+  @IsNotEmpty()
   password: string;
 
   @IsString()
-  @MinLength(1, { message: 'Введите имя' })
+  @MinLength(1, { message: 'Name is required' })
+  @IsNotEmpty()
   firstName: string;
 
   @IsString()
   @IsOptional()
   lastName?: string;
+
+  @IsString()
+  @IsOptional()
+  recaptchaToken?: string;
 }

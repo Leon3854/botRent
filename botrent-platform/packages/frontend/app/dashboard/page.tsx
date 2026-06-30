@@ -1,230 +1,168 @@
 'use client'
-
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Bot, CreditCard, Clock, Plus, Settings, Power, BarChart3 } from 'lucide-react'
-import Link from 'next/link'
-import { fetchApi } from '@/lib/api-client'
-import { Bot as BotType, Subscription, Payment } from '@/types'
 
 export default function DashboardPage() {
-  const [bots, setBots] = useState<BotType[]>([])
-  const [subscription, setSubscription] = useState<Subscription | null>(null)
-  const [payments, setPayments] = useState<Payment[]>([])
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
+  const [plans, setPlans] = useState<any[]>([])
+  const [subscription, setSubscription] = useState<any>(null)
+  const [bots, setBots] = useState<any[]>([])
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [showAddBot, setShowAddBot] = useState(false)
+  const [newBot, setNewBot] = useState({ name: '', type: 'booking', botToken: '', botUsername: '' })
+  const [checking, setChecking] = useState(true)
 
-  useEffect(() => {
-    Promise.all([
-      fetchApi<BotType[]>('/bots'),
-      fetchApi<Subscription>('/subscriptions/active').catch(() => null),
-      fetchApi<Payment[]>('/payments').catch(() => []),
-    ]).then(([botsData, subData, paymentsData]) => {
-      setBots(botsData)
-      setSubscription(subData)
-      setPayments(paymentsData)
-    }).catch(console.error)
-    .finally(() => setLoading(false))
-  }, [])
+  const getToken = () => localStorage.getItem('token')
 
-  const handleToggleBot = async (botId: number, isActive: boolean) => {
-    try {
-      const endpoint = isActive ? `/bots/${botId}/stop` : `/bots/${botId}/start`
-      await fetchApi(endpoint, { method: 'POST' })
-      setBots(prev => prev.map(bot => 
-        bot.id === botId ? { ...bot, isActive: !isActive } : bot
-      ))
-    } catch (error) {
-      console.error('Ошибка переключения бота:', error)
+  const logout = () => {
+    localStorage.clear()
+    window.location.href = '/auth/login'
+  }
+
+  const apiFetch = async (url: string, options: any = {}) => {
+    const token = getToken()
+    if (!token) { logout(); return null }
+    
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers,
+      },
+    })
+
+    if (res.status === 401) {
+      logout()
+      return null
+    }
+    return res
+  }
+
+  const loadData = async () => {
+    const res1 = await apiFetch('http://localhost:4000/api/auth/me')
+    if (!res1) return
+    setUser(await res1.json())
+    setChecking(false)
+
+    const res2 = await fetch('http://localhost:4000/api/plans')
+    const data = await res2.json()
+    setPlans(data.map((p: any) => ({
+      ...p, features: typeof p.features === 'string' ? JSON.parse(p.features) : p.features
+    })))
+
+    const res3 = await apiFetch('http://localhost:4000/api/subscriptions/active')
+    if (res3 && res3.ok) setSubscription(await res3.json())
+
+    const res4 = await apiFetch('http://localhost:4000/api/bots')
+    if (res4 && res4.ok) setBots(await res4.json())
+  }
+
+  useEffect(() => { loadData() }, [])
+
+  const activatePlan = async (planId: number) => {
+    setLoading(true)
+    await apiFetch('http://localhost:4000/api/subscriptions', {
+      method: 'POST', body: JSON.stringify({ planId })
+    })
+    await apiFetch('http://localhost:4000/api/subscriptions/activate-test', { method: 'POST' })
+    setMessage('Activated!')
+    setTimeout(() => window.location.reload(), 1000)
+  }
+
+  const createBot = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const res = await apiFetch('http://localhost:4000/api/bots', {
+      method: 'POST', body: JSON.stringify(newBot)
+    })
+    if (res && res.ok) {
+      setShowAddBot(false)
+      setNewBot({ name: '', type: 'booking', botToken: '', botUsername: '' })
+      loadData()
     }
   }
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-    </div>
+  const toggleBot = async (botId: number, isActive: boolean) => {
+    await apiFetch(`http://localhost:4000/api/bots/${botId}/${isActive ? 'stop' : 'start'}`, { method: 'POST' })
+    loadData()
   }
 
+  const deleteBot = async (botId: number) => {
+    if (!confirm('Delete?')) return
+    await apiFetch(`http://localhost:4000/api/bots/${botId}`, { method: 'DELETE' })
+    loadData()
+  }
+
+  if (checking) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0a0a1a',color:'white',fontSize:20}}>Loading...</div>
+
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Добро пожаловать в BotRent</h1>
-        <p className="text-muted-foreground">Управляйте своими ботами и подпиской</p>
+    <div style={{minHeight:'100vh',background:'#0a0a1a',color:'white'}}>
+      <div style={{background:'#111827',padding:'15px 30px',display:'flex',justifyContent:'space-between'}}>
+        <a href="/" style={{fontSize:24,fontWeight:'bold',color:'white',textDecoration:'none'}}>BotRent</a>
+        <button onClick={logout} style={{padding:'8px 16px',background:'#ef4444',color:'white',border:'none',borderRadius:8,cursor:'pointer'}}>Exit</button>
       </div>
-
-      {/* Статистика */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-6 rounded-2xl bg-card/50 border border-border/50"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Активные боты</h3>
-            <Bot className="w-5 h-5 text-primary" />
+      <div style={{maxWidth:1000,margin:'0 auto',padding:40}}>
+        {subscription ? (
+          <div style={{background:'#065f46',padding:20,borderRadius:12,marginBottom:20}}>
+            Active: {subscription.plan?.name} — {subscription.plan?.price} rub/mo
           </div>
-          <p className="text-3xl font-bold">{bots.filter(b => b.isActive).length}</p>
-          <p className="text-sm text-muted-foreground">из {bots.length} созданных</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="p-6 rounded-2xl bg-card/50 border border-border/50"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Тариф</h3>
-            <CreditCard className="w-5 h-5 text-primary" />
+        ) : (
+          <div style={{background:'#7f1d1d',padding:20,borderRadius:12,marginBottom:20}}>No subscription</div>
+        )}
+        {message && <div style={{padding:20,borderRadius:12,marginBottom:20,background:message.includes('Error')?'#7f1d1d':'#065f46'}}>{message}</div>}
+        
+        <div style={{display:'grid',gridTemplateColumns:'1fr 2fr',gap:20,marginBottom:30}}>
+          <div style={{background:'#1a1a2e',padding:20,borderRadius:16}}>
+            <h3>{user?.firstName}</h3>
+            <p style={{color:'#9ca3af'}}>{user?.email}</p>
           </div>
-          {subscription ? (
-            <>
-              <p className="text-3xl font-bold">{subscription.plan.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {subscription.status === 'active' ? 'Активен' : subscription.status}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-xl text-muted-foreground">Нет подписки</p>
-              <Link href="/#pricing" className="text-sm text-primary hover:underline">
-                Выбрать тариф
-              </Link>
-            </>
-          )}
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="p-6 rounded-2xl bg-card/50 border border-border/50"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Платежи</h3>
-            <BarChart3 className="w-5 h-5 text-primary" />
-          </div>
-          <p className="text-3xl font-bold">{payments.length}</p>
-          <p className="text-sm text-muted-foreground">за всё время</p>
-        </motion.div>
-      </div>
-
-      {/* Боты */}
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Мои боты</h2>
-          <Link
-            href="/dashboard/bots/new"
-            className="flex items-center space-x-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Создать бота</span>
-          </Link>
-        </div>
-
-        <div className="grid gap-4">
-          {bots.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Bot className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>У вас ещё нет созданных ботов</p>
+          <div style={{background:'#1a1a2e',padding:20,borderRadius:16}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:15}}>
+              <h3 style={{margin:0}}>Bots ({Array.isArray(bots)?bots.length:0})</h3>
+              {subscription && <button onClick={()=>setShowAddBot(true)} style={{padding:'8px 16px',background:'#3b82f6',color:'white',border:'none',borderRadius:8,cursor:'pointer'}}>+ New</button>}
             </div>
-          ) : (
-            bots.map((bot) => (
-              <motion.div
-                key={bot.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-6 rounded-2xl bg-card/50 border border-border/50 hover:border-primary/50 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Bot className="w-6 h-6 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">{bot.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {bot.botUsername ? `@${bot.botUsername}` : 'Не подключен'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Тип: {bot.type}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      bot.isActive 
-                        ? 'bg-green-500/10 text-green-500' 
-                        : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {bot.isActive ? 'Активен' : 'Остановлен'}
-                    </span>
-                    <button
-                      onClick={() => handleToggleBot(bot.id, bot.isActive)}
-                      className={`p-2 rounded-lg transition-colors ${
-                        bot.isActive 
-                          ? 'hover:bg-destructive/10 text-destructive' 
-                          : 'hover:bg-primary/10 text-primary'
-                      }`}
-                      title={bot.isActive ? 'Остановить бота' : 'Запустить бота'}
-                    >
-                      <Power className="w-4 h-4" />
-                    </button>
-                    <Link
-                      href={`/dashboard/bots/${bot.id}`}
-                      className="p-2 rounded-lg hover:bg-accent transition-colors"
-                      title="Настройки бота"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </Link>
-                  </div>
+            {(Array.isArray(bots)?bots:[]).map((bot:any)=>(
+              <div key={bot.id} style={{background:'#111827',padding:10,borderRadius:8,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div>
+                  <strong>{bot.name}</strong>
+                  <span style={{marginLeft:10,color:bot.isActive?'#10b981':'#ef4444',fontSize:12}}>{bot.isActive?'ON':'OFF'}</span>
                 </div>
-              </motion.div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* История платежей */}
-      {payments.length > 0 && (
-        <div>
-          <h2 className="text-2xl font-bold mb-6">История платежей</h2>
-          <div className="overflow-x-auto rounded-2xl border border-border/50">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border/50">
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Дата</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Сумма</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Статус</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((payment) => (
-                  <tr key={payment.id} className="border-b border-border/50 last:border-0">
-                    <td className="p-4 text-sm">
-                      {new Date(payment.createdAt).toLocaleDateString('ru-RU', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                      })}
-                    </td>
-                    <td className="p-4 font-medium">{payment.amount.toLocaleString()} ₽</td>
-                    <td className="p-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        payment.status === 'succeeded'
-                          ? 'bg-green-500/10 text-green-500'
-                          : payment.status === 'pending'
-                          ? 'bg-yellow-500/10 text-yellow-500'
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {payment.status === 'succeeded' ? 'Оплачен' : 
-                         payment.status === 'pending' ? 'В обработке' : 'Отменён'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                <div style={{display:'flex',gap:6}}>
+                  <button onClick={()=>toggleBot(bot.id,bot.isActive)} style={{padding:'4px 10px',borderRadius:4,border:'none',background:bot.isActive?'#dc2626':'#10b981',color:'white',fontSize:11,cursor:'pointer'}}>{bot.isActive?'Stop':'Start'}</button>
+                  <button onClick={()=>deleteBot(bot.id)} style={{padding:'4px 10px',borderRadius:4,border:'1px solid #ef4444',background:'transparent',color:'#ef4444',fontSize:11,cursor:'pointer'}}>Del</button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      )}
+
+        {!subscription && plans.map((plan,i)=>(
+          <div key={plan.id} style={{background:i===1?'#1e3a5f':'#1a1a2e',padding:20,borderRadius:12,marginBottom:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div><strong>{plan.name}</strong> — {plan.price} rub/mo</div>
+            <button onClick={()=>activatePlan(plan.id)} style={{padding:'8px 20px',background:'#3b82f6',color:'white',border:'none',borderRadius:8,cursor:'pointer'}}>Activate</button>
+          </div>
+        ))}
+
+        {showAddBot && (
+          <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.8)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}>
+            <div style={{background:'#1a1a2e',padding:25,borderRadius:16,width:400}}>
+              <h3 style={{marginBottom:15}}>New Bot</h3>
+              <form onSubmit={createBot}>
+                <input placeholder="Name" value={newBot.name} onChange={e=>setNewBot({...newBot,name:e.target.value})} required style={{width:'100%',padding:8,marginBottom:8,borderRadius:6,border:'1px solid #374151',background:'#111827',color:'white',boxSizing:'border-box'}} />
+                <input placeholder="Token" value={newBot.botToken} onChange={e=>setNewBot({...newBot,botToken:e.target.value})} required style={{width:'100%',padding:8,marginBottom:8,borderRadius:6,border:'1px solid #374151',background:'#111827',color:'white',boxSizing:'border-box'}} />
+                <input placeholder="@username" value={newBot.botUsername} onChange={e=>setNewBot({...newBot,botUsername:e.target.value})} required style={{width:'100%',padding:8,marginBottom:8,borderRadius:6,border:'1px solid #374151',background:'#111827',color:'white',boxSizing:'border-box'}} />
+                <select value={newBot.type} onChange={e=>setNewBot({...newBot,type:e.target.value})} style={{width:'100%',padding:8,marginBottom:15,borderRadius:6,border:'1px solid #374151',background:'#111827',color:'white'}}>
+                  <option value="booking">Booking</option><option value="quiz">Quiz</option><option value="catalog">Catalog</option><option value="notifications">Notifications</option>
+                </select>
+                <div style={{display:'flex',gap:10}}>
+                  <button type="button" onClick={()=>setShowAddBot(false)} style={{flex:1,padding:10,background:'#374151',color:'white',border:'none',borderRadius:8,cursor:'pointer'}}>Cancel</button>
+                  <button type="submit" style={{flex:1,padding:10,background:'#3b82f6',color:'white',border:'none',borderRadius:8,cursor:'pointer'}}>Create</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

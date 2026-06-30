@@ -23,7 +23,14 @@ export default function Home() {
 
   useEffect(() => {
     fetchApi<Plan[]>('/plans')
-      .then(data => setPlans(data))
+      .then(data => {
+        // Парсим features если это строка JSON
+        const parsedData = data.map((plan: any) => ({
+          ...plan,
+          features: typeof plan.features === 'string' ? JSON.parse(plan.features) : plan.features
+        }))
+        setPlans(parsedData)
+      })
       .catch(console.error)
   }, [])
 
@@ -175,43 +182,48 @@ export default function Home() {
             <h2 className="text-3xl font-bold text-center mb-4">{landingContent.plansTitle}</h2>
             <p className="text-center text-muted-foreground mb-12">{landingContent.plansSubtitle}</p>
             <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-              {plans.map((plan, index) => (
-                <motion.div
-                  key={plan.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className={`p-8 rounded-2xl border backdrop-blur-sm ${
-                    index === 1 
-                      ? 'bg-primary/10 border-primary/50 scale-105' 
-                      : 'bg-card/50 border-border/50'
-                  }`}
-                >
-                  <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
-                  <div className="mb-6">
-                    <span className="text-4xl font-bold">{plan.price.toLocaleString()} ₽</span>
-                    <span className="text-muted-foreground">/мес</span>
-                  </div>
-                  <ul className="space-y-4 mb-8">
-                    {plan.features.map((feature: string) => (
-                      <li key={feature} className="flex items-center text-muted-foreground">
-                        <Check className="w-5 h-5 text-primary mr-2 flex-shrink-0" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <Link
-                    href={`/checkout/${plan.id}`}
-                    className={`block text-center py-3 rounded-lg font-medium transition-colors ${
-                      index === 1
-                        ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                        : 'border border-border hover:border-primary/50 hover:text-primary'
+              {plans.map((plan, index) => {
+                // Убеждаемся что features это массив
+                const features = Array.isArray(plan.features) ? plan.features : 
+                                typeof plan.features === 'string' ? JSON.parse(plan.features) : []
+                return (
+                  <motion.div
+                    key={plan.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: index * 0.1 }}
+                    className={`p-8 rounded-2xl border backdrop-blur-sm ${
+                      index === 1 
+                        ? 'bg-primary/10 border-primary/50 scale-105' 
+                        : 'bg-card/50 border-border/50'
                     }`}
                   >
-                    Выбрать тариф
-                  </Link>
-                </motion.div>
-              ))}
+                    <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
+                    <div className="mb-6">
+                      <span className="text-4xl font-bold">{plan.price.toLocaleString()} ₽</span>
+                      <span className="text-muted-foreground">/мес</span>
+                    </div>
+                    <ul className="space-y-4 mb-8">
+                      {features.map((feature: string, i: number) => (
+                        <li key={i} className="flex items-center text-muted-foreground">
+                          <Check className="w-5 h-5 text-primary mr-2 flex-shrink-0" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      href={`/checkout/${plan.id}`}
+                      className={`block text-center py-3 rounded-lg font-medium transition-colors ${
+                        index === 1
+                          ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                          : 'border border-border hover:border-primary/50 hover:text-primary'
+                      }`}
+                    >
+                      Выбрать тариф
+                    </Link>
+                  </motion.div>
+                )
+              })}
             </div>
           </div>
         </section>

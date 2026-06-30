@@ -1,36 +1,46 @@
 import { Controller, Get, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SubscriptionsService } from './subscriptions.service';
-import { CreateSubscriptionDto } from './dto/create-subscription.dto';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Controller()
 export class SubscriptionsController {
-  constructor(private subscriptionsService: SubscriptionsService) {}
+  constructor(
+    private subscriptionsService: SubscriptionsService,
+    private prisma: PrismaService,
+  ) {}
 
-  // GET /api/plans
   @Get('plans')
-  async getPlans() {
+  getPlans() {
     return this.subscriptionsService.getPlans();
   }
 
-  // POST /api/subscriptions
   @UseGuards(JwtAuthGuard)
   @Post('subscriptions')
-  async createSubscription(@Req() req, @Body() dto: CreateSubscriptionDto) {
+  createSubscription(@Req() req, @Body() dto: { planId: number }) {
     return this.subscriptionsService.createSubscription(req.user.id, dto.planId);
   }
 
-  // GET /api/subscriptions/active
   @UseGuards(JwtAuthGuard)
   @Get('subscriptions/active')
   async getActiveSubscription(@Req() req) {
     return this.subscriptionsService.getActiveSubscription(req.user.id);
   }
 
-  // POST /api/subscriptions/cancel
   @UseGuards(JwtAuthGuard)
-  @Post('subscriptions/cancel')
-  async cancelSubscription(@Req() req) {
-    return this.subscriptionsService.cancelSubscription(req.user.id);
+  @Post('subscriptions/activate-test')
+  async activateTest(@Req() req) {
+    const pending = await this.prisma.subscription.findFirst({
+      where: { userId: req.user.id, status: 'pending' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!pending) {
+      const active = await this.prisma.subscription.findFirst({
+        where: { userId: req.user.id, status: 'active' },
+      });
+      if (active) return active;
+      throw new Error('No pending subscription');
+    }
+    return this.subscriptionsService.activateSubscription(pending.id);
   }
 }

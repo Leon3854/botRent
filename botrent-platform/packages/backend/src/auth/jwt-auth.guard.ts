@@ -1,4 +1,4 @@
-import { Injectable, ExecutionContext } from '@nestjs/common';
+import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 
@@ -9,15 +9,19 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   canActivate(context: ExecutionContext) {
-    const isPublic = this.reflector.getAllAndOverride<boolean>('isPublic', [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    return super.canActivate(context);
+  }
 
-    if (isPublic) {
-      return true;
+  handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
+    if (err || !user) {
+      throw err || new UnauthorizedException('Authentication required');
     }
 
-    return super.canActivate(context);
+    // Проверка что пользователь активен
+    if (!user.isActive) {
+      throw new UnauthorizedException('Account deactivated');
+    }
+
+    return user;
   }
 }

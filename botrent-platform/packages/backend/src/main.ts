@@ -10,9 +10,16 @@ async function bootstrap() {
   // Безопасность
   app.use(helmet.default());
 
-  // CORS
+  // CORS — разрешаем все localhost порты
   app.enableCors({
-    origin: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+    origin: function (origin, callback) {
+      // Разрешаем запросы без origin (curl, Postman) и с localhost
+      if (!origin || origin.startsWith('http://localhost')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   });
 
@@ -23,9 +30,7 @@ async function bootstrap() {
     transform: true,
   }));
 
-  // Увеличение лимита для вебхуков
-  app.use(json({ limit: '1mb' }));
-  app.use(urlencoded({ extended: true, limit: '1mb' }));
+  // Увеличение лимита limit: '1mb' }));
 
   // Глобальный префикс API
   app.setGlobalPrefix('api');

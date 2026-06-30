@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { CheckCircle, ArrowRight, Home } from 'lucide-react'
 import Link from 'next/link'
 import { fetchApi } from '@/lib/api-client'
 
-export default function SuccessPage() {
+function SuccessContent() {
   const searchParams = useSearchParams()
   const [message, setMessage] = useState('Обрабатываем ваш платёж...')
   const [isVerified, setIsVerified] = useState(false)
@@ -15,7 +15,6 @@ export default function SuccessPage() {
   useEffect(() => {
     const paymentId = searchParams.get('payment_id')
     if (paymentId) {
-      // Проверяем статус платежа
       fetchApi(`/payments/${paymentId}/status`)
         .then((data: any) => {
           if (data.status === 'succeeded') {
@@ -75,5 +74,17 @@ export default function SuccessPage() {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <SuccessContent />
+    </Suspense>
   )
 }
