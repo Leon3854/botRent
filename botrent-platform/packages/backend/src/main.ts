@@ -1,47 +1,33 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import * as helmet from 'helmet';
+import helmet from 'helmet';
+import * as cookieParser from 'cookie-parser';
 import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Безопасность
-  app.use(helmet.default());
+  app.use(helmet());
+  app.use(cookieParser());
 
-  // CORS — разрешаем все localhost порты
   app.enableCors({
-    origin: function (origin, callback) {
-      // Разрешаем запросы без origin (curl, Postman) и с localhost
-      if (!origin || origin.startsWith('http://localhost')) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: true,
     credentials: true,
   });
 
-  // Глобальная валидация
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true,
   }));
 
-  // Увеличение лимита limit: '1mb' }));
-
-  // Глобальный префикс API
+  app.use(json({ limit: '10kb' }));
+  app.use(urlencoded({ extended: true, limit: '10kb' }));
   app.setGlobalPrefix('api');
-
-  // Graceful shutdown
   app.enableShutdownHooks();
 
-  const port = process.env.PORT || 4000;
-  await app.listen(port);
-  console.log(`🚀 BotRent Backend запущен на порту ${port}`);
-  console.log(`📅 Время запуска: ${new Date().toISOString()}`);
+  await app.listen(4000);
+  console.log('🚀 BotRent Backend started on port 4000');
 }
-
 bootstrap();
