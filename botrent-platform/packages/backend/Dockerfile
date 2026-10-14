@@ -8,8 +8,8 @@ COPY package.json ./
 RUN npm install
 
 # Генерируем Prisma клиент с указанием платформы
-COPY prisma ./prisma
-RUN npx prisma generate
+COPY src/prisma ./src/prisma
+RUN npx prisma generate --schema src/prisma/schema.prisma
 
 COPY . .
 RUN npm run build
@@ -22,7 +22,7 @@ RUN apk add --no-cache openssl
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/src/prisma ./src/prisma
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/scripts ./scripts
 
